@@ -169,8 +169,9 @@ def fwd_helper_for_analyse_tss_file(in_tss_start_pos, in_pssm_s1, in_pssm_s2, in
     pssm_len = len(in_pssm["A"])
 
     for i in range(in_tss_start_pos - in_pssm_s2,  in_tss_start_pos - in_pssm_s1 + 1):
-        tmp_end_pos = i
-        tmp_start_pos = i - pssm_len + 1
+        tmp_start_pos = i
+        tmp_end_pos = i + pssm_len - 1
+
         if tmp_start_pos >= 1:
             temp_score = 0
             temp_pssm_pos = 0
@@ -178,7 +179,7 @@ def fwd_helper_for_analyse_tss_file(in_tss_start_pos, in_pssm_s1, in_pssm_s2, in
                 if in_genome[j] in in_pssm:
                     temp_score += in_pssm[in_genome[j]][temp_pssm_pos]
                 temp_pssm_pos += 1
-            result.append([tmp_start_pos, tmp_end_pos, "+", temp_score])
+            result.append([in_tss_start_pos, in_pssm_s1, in_pssm_s2, tmp_start_pos, tmp_end_pos, "+", temp_score])
     return result
 
 
@@ -187,9 +188,10 @@ def rev_helper_for_analyse_tss_file(in_tss_start_pos, in_pssm_s1, in_pssm_s2, in
     pssm_len = len(in_pssm["A"])
     lookup = {"A": "T", "C": "G", "G": "C", "T": "A"}
 
-    for i in range(in_tss_start_pos + in_pssm_s1, in_tss_start_pos + in_pssm_s2 + 1):
+    for i in range(in_tss_start_pos + in_pssm_s1 - pssm_len + 1, in_tss_start_pos + in_pssm_s2 - pssm_len + 2):
         tmp_start_pos = i
-        tmp_end_pos = i + pssm_len -1
+        tmp_end_pos = i + pssm_len - 1
+
         if tmp_end_pos <= len(in_genome):
             temp_score = 0
             temp_pssm_pos = pssm_len - 1
@@ -199,7 +201,7 @@ def rev_helper_for_analyse_tss_file(in_tss_start_pos, in_pssm_s1, in_pssm_s2, in
                     # Calculate PSSM score backwards!
                     temp_score += in_pssm[compl_nucl][temp_pssm_pos]
                 temp_pssm_pos -= 1
-            result.append([tmp_start_pos, tmp_end_pos, "-", temp_score])
+            result.append([in_tss_start_pos, in_pssm_s1, in_pssm_s2, tmp_start_pos, tmp_end_pos, "-", temp_score])
     return result
 
 
@@ -233,7 +235,7 @@ def analyse_tss_file(in_tss_args, in_pssm_s1_args, in_pssm_s2_args, in_pssm, in_
 def calculate_adjusted_p_values_norm(in_master_table, in_mu, in_std, in_alpha):
     raw_p_values = list()
     for i in range(0, len(in_master_table)):
-        tmp_p_val = norm(in_mu, in_std).sf(in_master_table[i][3])
+        tmp_p_val = norm(in_mu, in_std).sf(in_master_table[i][6])
         raw_p_values.append(tmp_p_val)
         master_table[i].append(tmp_p_val)
     # adjust p-values
@@ -250,7 +252,7 @@ def calculate_adjusted_p_values_norm(in_master_table, in_mu, in_std, in_alpha):
 def calculate_adjusted_p_values_genextreme(in_master_table, c, loc, scale, in_alpha):
     raw_p_values = list()
     for i in range(0, len(in_master_table)):
-        tmp_p_val = genextreme.sf(in_master_table[i][3], c, loc, scale)
+        tmp_p_val = genextreme.sf(in_master_table[i][6], c, loc, scale)
         raw_p_values.append(tmp_p_val)
         master_table[i].append(tmp_p_val)
     # adjust p-values
@@ -279,7 +281,8 @@ def build_final_tables(in_out_folder, in_master_table, in_alpha, in_description,
 
     handle = open(path_csv, "w")
     # write header line
-    header = "#START-POS" + "\t" + "END-POS" + "\t" + "STRAND" + "\t" + "PSSM-SCORE" + "\t" + "RAW_P-VALUE" + "\t" + "ADJUSTED_P-VALUE" + "\n"
+    header = "#TSS-POS" + "\t" + "MOTIF-MIN-DIST" + "\t" + "MOTIF-MAX-DIST" + "\t" + "START-POS" + "\t" + "END-POS" + \
+             "\t" + "STRAND" + "\t" + "PSSM-SCORE" + "\t" + "RAW_P-VALUE" + "\t" + "ADJUSTED_P-VALUE" + "\n"
     handle.write(header)
     # write data
     for entry in in_master_table:
@@ -291,12 +294,12 @@ def build_final_tables(in_out_folder, in_master_table, in_alpha, in_description,
     handle = open(path_gff, "w")
     handle.write("##gff-version 3\n")
     for entry in in_master_table:
-        if entry[5] < in_alpha:
+        if entry[8] < in_alpha:
             color = "255 10 225"
-            last_col = "colour=" + str(color) + ";" + "note=" + "PSSM-Score " + str(round(entry[3], 6)) + " raw_p-Value " \
-                       + str(round(entry[4], 6)) + " adjusted_p-Value " + str(round(entry[5], 6))
-            out_str = "MOTIF-EVA" + "\t" + "MOTIF-EVA" + "\t" + str(in_description) + "\t" + str(entry[0]) + "\t" + \
-                      str(entry[1]) + "\t" + "." + "\t" + str(entry[2]) + "\t" + "." + "\t" + str(last_col) + "\n"
+            last_col = "colour=" + str(color) + ";" + "note=" + "PSSM-Score " + str(round(entry[6], 6)) + " raw_p-Value " \
+                       + str(round(entry[7], 6)) + " adjusted_p-Value " + str(round(entry[8], 6))
+            out_str = "PRIME" + "\t" + "PRIME" + "\t" + str(in_description) + "\t" + str(entry[3]) + "\t" + \
+                      str(entry[4]) + "\t" + "." + "\t" + str(entry[5]) + "\t" + "." + "\t" + str(last_col) + "\n"
             handle.write(out_str)
     handle.close()
 
@@ -342,13 +345,13 @@ if __name__ == "__main__":
     parser.add_argument("-p", "--pssm", help="PSSM file, otherwise it will be computed <FILE> [optional]", type=str, default="")
     parser.add_argument("-m", "--motif", help="Hand selected motif patterns <FILE> [optional if --pssm is used, otherwise it is mandatory!", type=str, default="")
     parser.add_argument("-s", "--tss", help="Transcriptional Start Sites <FILE>", type=str, default="")
-    parser.add_argument("-x", "--pssm_s1", help="PSSM start min.: Upstream distance minimum", type=int, default=6)
-    parser.add_argument("-y", "--pssm_s2", help="PSSM start max.: Upstream distance maximum", type=int, default=8)
+    parser.add_argument("-x", "--pssm_s1", help="PSSM start min.: Minimum upstream distance", type=int, default=10)
+    parser.add_argument("-y", "--pssm_s2", help="PSSM start max.: Maximum upstream distance", type=int, default=15)
     parser.add_argument("-c", "--pseudo_count", help="Value for pseudocounts. Value is added to zero as well as non-zero values", type=float, default=0.7)
     parser.add_argument("-n", "--num_bkg_runs", help="Number of randomly picked PSSM scores from genome to create a suitable background model", type=int, default=100000)
     parser.add_argument("-a", "--alpha", help="Alpha level [0.0-1.0]", type=float, default=0.05)
     parser.add_argument("-o", "--out_folder", help="Folder for the final results", type=str, default="")
-    parser.add_argument("-d", "--description", help="Feature type; only used for the GFF file", type=str, default="TATA")
+    parser.add_argument("-d", "--description", help="Feature type; only used for the GFF file", type=str, default="motif")
     parser.add_argument("-k", "--distribution", help="PSSM values are normal distributed or follows a generalized extreme value distribution; [norm, genextreme]", type=str, default="norm")
     args = parser.parse_args()
 
