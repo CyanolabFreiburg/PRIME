@@ -25,12 +25,6 @@ def check_input_parameters(in_fasta, in_pssm, in_motif, in_tss, in_pssm_s1, in_p
             message += "-> Please specify  --pssm  parameter!\n"
     if os.path.isfile(in_pssm) and os.path.isfile(in_motif):
         message += "-> Please specify only one of the named parameter: --pssm  or  --motif!\n"
-    #if in_pssm_s1 <= 0:
-    #    message += "-> Parameter  --pssm_s1  should be greater than 0!\n"
-    #if in_pssm_s2 <= 0:
-    #    message += "-> Parameter  --pssm_s2  should be greater than 0!\n"
-    if in_pssm_s1 > in_pssm_s2:
-        message += "-> Parameter  --pssm_s1  should be smaller or equal than  --pssm_s2!\n"
     if in_pseudo_count < 0:
         message += "-> Parameter  --pseudo_count  takes only values >= 0!\n"
     if in_num_bkg_runs <= 0:
@@ -168,7 +162,26 @@ def fwd_helper_for_analyse_tss_file(in_tss_start_pos, in_pssm_s1, in_pssm_s2, in
     result = list()
     pssm_len = len(in_pssm["A"])
 
-    for i in range(in_tss_start_pos - in_pssm_s2,  in_tss_start_pos - in_pssm_s1 + 1):
+    if in_pssm_s1 > 0:
+        motif_range = "[+" + str(in_pssm_s1) + ", "
+    else:
+        motif_range = "[" + str(in_pssm_s1) + ", "
+
+    if in_pssm_s2 > 0:
+        motif_range += "+" + str(in_pssm_s2) + "]"
+    else:
+        motif_range += str(in_pssm_s2) + "]"
+
+    if in_pssm_s1 <= 0:
+        rel_start_pos = in_tss_start_pos + in_pssm_s1 - pssm_len + 1
+    else:
+        rel_start_pos = in_tss_start_pos + in_pssm_s1
+    if in_pssm_s2 <= 0:
+        rel_end_pos = in_tss_start_pos + in_pssm_s2 - pssm_len + 2
+    else:
+        rel_end_pos = in_tss_start_pos + in_pssm_s2 + 1
+
+    for i in range(rel_start_pos, rel_end_pos):
         tmp_start_pos = i
         tmp_end_pos = i + pssm_len - 1
         if tmp_start_pos >= 1:
@@ -180,7 +193,8 @@ def fwd_helper_for_analyse_tss_file(in_tss_start_pos, in_pssm_s1, in_pssm_s2, in
                     temp_motif += str(in_genome[j])
                     temp_score += in_pssm[in_genome[j]][temp_pssm_pos]
                 temp_pssm_pos += 1
-            result.append([in_tss_start_pos, in_pssm_s1, in_pssm_s2, temp_motif, tmp_start_pos, tmp_end_pos, "+", temp_score])
+
+            result.append([in_tss_start_pos, motif_range, temp_motif, tmp_start_pos, tmp_end_pos, "+", temp_score])
     return result
 
 
@@ -189,7 +203,26 @@ def rev_helper_for_analyse_tss_file(in_tss_start_pos, in_pssm_s1, in_pssm_s2, in
     pssm_len = len(in_pssm["A"])
     lookup = {"A": "T", "C": "G", "G": "C", "T": "A"}
 
-    for i in range(in_tss_start_pos + in_pssm_s1 - pssm_len + 1, in_tss_start_pos + in_pssm_s2 - pssm_len + 2):
+    if in_pssm_s1 > 0:
+        motif_range = "[+" + str(in_pssm_s1) + ", "
+    else:
+        motif_range = "[" + str(in_pssm_s1) + ", "
+
+    if in_pssm_s2 > 0:
+        motif_range += "+" + str(in_pssm_s2) + "]"
+    else:
+        motif_range += str(in_pssm_s2) + "]"
+
+    if in_pssm_s1 <= 0:
+        rel_end_pos = in_tss_start_pos + (-1 * in_pssm_s1) + 1
+    else:
+        rel_end_pos = in_tss_start_pos - in_pssm_s1 - pssm_len + 2
+    if in_pssm_s2 <= 0:
+        rel_start_pos = in_tss_start_pos + (-1 * in_pssm_s2)
+    else:
+        rel_start_pos = in_tss_start_pos - in_pssm_s2 - pssm_len + 1
+
+    for i in range(rel_start_pos, rel_end_pos):
         tmp_start_pos = i
         tmp_end_pos = i + pssm_len - 1
 
@@ -205,11 +238,7 @@ def rev_helper_for_analyse_tss_file(in_tss_start_pos, in_pssm_s1, in_pssm_s2, in
                     temp_score += in_pssm[compl_nucl][temp_pssm_pos]
                 temp_pssm_pos -= 1
             temp_motif = temp_motif[::-1]
-            if in_pssm_s1 > 0:
-                in_pssm_s1 *= -1
-            if in_pssm_s2 > 0:
-                in_pssm_s2 *= -1
-            result.append([in_tss_start_pos, in_pssm_s1, in_pssm_s2, temp_motif, tmp_start_pos, tmp_end_pos, "-", temp_score])
+            result.append([in_tss_start_pos, motif_range, temp_motif, tmp_start_pos, tmp_end_pos, "-", temp_score])
     return result
 
 
@@ -218,6 +247,13 @@ def analyse_tss_file(in_tss_args, in_pssm_s1_args, in_pssm_s2_args, in_pssm, in_
     handle = open(in_tss_args, "r")
     count = 0
     ensure_unique_tss = dict()
+
+    # autodetection to get the correct order of the input parameters -x and -y
+    if int(in_pssm_s1_args) >= int(in_pssm_s2_args):
+        swap = in_pssm_s2_args
+        in_pssm_s2_args = in_pssm_s1_args
+        in_pssm_s1_args = swap
+
     for line in handle:
         line = line.rstrip()
         if count > 0:
@@ -243,7 +279,7 @@ def analyse_tss_file(in_tss_args, in_pssm_s1_args, in_pssm_s2_args, in_pssm, in_
 def calculate_adjusted_p_values_norm(in_master_table, in_mu, in_std, in_alpha):
     raw_p_values = list()
     for i in range(0, len(in_master_table)):
-        tmp_p_val = norm(in_mu, in_std).sf(in_master_table[i][7])
+        tmp_p_val = norm(in_mu, in_std).sf(in_master_table[i][6])
         raw_p_values.append(tmp_p_val)
         master_table[i].append(tmp_p_val)
     # adjust p-values
@@ -260,7 +296,7 @@ def calculate_adjusted_p_values_norm(in_master_table, in_mu, in_std, in_alpha):
 def calculate_adjusted_p_values_genextreme(in_master_table, c, loc, scale, in_alpha):
     raw_p_values = list()
     for i in range(0, len(in_master_table)):
-        tmp_p_val = genextreme.sf(in_master_table[i][7], c, loc, scale)
+        tmp_p_val = genextreme.sf(in_master_table[i][6], c, loc, scale)
         raw_p_values.append(tmp_p_val)
         master_table[i].append(tmp_p_val)
     # adjust p-values
@@ -289,7 +325,7 @@ def build_final_tables(in_out_folder, in_master_table, in_alpha, in_description,
 
     handle = open(path_csv, "w")
     # write header line
-    header = "#TSS-POS" + "\t" + "MOTIF-MIN-DIST" + "\t" + "MOTIF-MAX-DIST" + "\t" + "MOTIF" + "\t" + "START-POS" + "\t" + "END-POS" + \
+    header = "#TSS-POS" + "\t" + "MOTIF-RANGE" + "\t" + "MOTIF" + "\t" + "START-POS" + "\t" + "END-POS" + \
              "\t" + "STRAND" + "\t" + "PSSM-SCORE" + "\t" + "RAW_P-VALUE" + "\t" + "ADJUSTED_P-VALUE" + "\n"
     handle.write(header)
     # write data
@@ -304,10 +340,10 @@ def build_final_tables(in_out_folder, in_master_table, in_alpha, in_description,
     for entry in in_master_table:
         if entry[8] < in_alpha:
             color = "255 10 225"
-            last_col = "colour=" + str(color) + ";" + "note=" + "PSSM-Score " + str(round(entry[7], 6)) + " raw_p-Value " \
-                       + str(round(entry[8], 6)) + " adjusted_p-Value " + str(round(entry[9], 6))
-            out_str = "PRIME" + "\t" + "PRIME" + "\t" + str(in_description) + "\t" + str(entry[4]) + "\t" + \
-                      str(entry[5]) + "\t" + "." + "\t" + str(entry[6]) + "\t" + "." + "\t" + str(last_col) + "\n"
+            last_col = "colour=" + str(color) + ";" + "note=" + "PSSM-Score " + str(round(entry[6], 6)) + " raw_p-Value " \
+                       + str(round(entry[7], 6)) + " adjusted_p-Value " + str(round(entry[8], 6))
+            out_str = "PRIME" + "\t" + "PRIME" + "\t" + str(in_description) + "\t" + str(entry[3]) + "\t" + \
+                      str(entry[4]) + "\t" + "." + "\t" + str(entry[5]) + "\t" + "." + "\t" + str(last_col) + "\n"
             handle.write(out_str)
     handle.close()
 
@@ -353,8 +389,8 @@ if __name__ == "__main__":
     parser.add_argument("-p", "--pssm", help="PSSM file, otherwise it will be computed <FILE> [optional]", type=str, default="")
     parser.add_argument("-m", "--motif", help="Hand selected motif patterns <FILE> [optional if --pssm is used, otherwise it is mandatory!", type=str, default="")
     parser.add_argument("-s", "--tss", help="Transcriptional Start Sites <FILE>", type=str, default="")
-    parser.add_argument("-x", "--pssm_s1", help="PSSM start min.: Minimum upstream distance", type=int, default=10)
-    parser.add_argument("-y", "--pssm_s2", help="PSSM start max.: Maximum upstream distance", type=int, default=15)
+    parser.add_argument("-x", "--pssm_s1", help="PSSM: Distance 1 to related TSS", type=int, default=3)
+    parser.add_argument("-y", "--pssm_s2", help="PSSM: Distance 2 to detected TSS", type=int, default=1)
     parser.add_argument("-c", "--pseudo_count", help="Value for pseudocounts. Value is added to zero as well as non-zero values", type=float, default=0.7)
     parser.add_argument("-n", "--num_bkg_runs", help="Number of randomly picked PSSM scores from genome to create a suitable background model", type=int, default=100000)
     parser.add_argument("-a", "--alpha", help="Alpha level [0.0-1.0]", type=float, default=0.05)
