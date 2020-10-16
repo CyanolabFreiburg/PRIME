@@ -25,10 +25,10 @@ def check_input_parameters(in_fasta, in_pssm, in_motif, in_tss, in_pssm_s1, in_p
             message += "-> Please specify  --pssm  parameter!\n"
     if os.path.isfile(in_pssm) and os.path.isfile(in_motif):
         message += "-> Please specify only one of the named parameter: --pssm  or  --motif!\n"
-    if in_pssm_s1 <= 0:
-        message += "-> Parameter  --pssm_s1  should be greater than 0!\n"
-    if in_pssm_s2 <= 0:
-        message += "-> Parameter  --pssm_s2  should be greater than 0!\n"
+    #if in_pssm_s1 <= 0:
+    #    message += "-> Parameter  --pssm_s1  should be greater than 0!\n"
+    #if in_pssm_s2 <= 0:
+    #    message += "-> Parameter  --pssm_s2  should be greater than 0!\n"
     if in_pssm_s1 > in_pssm_s2:
         message += "-> Parameter  --pssm_s1  should be smaller or equal than  --pssm_s2!\n"
     if in_pseudo_count < 0:
@@ -171,15 +171,16 @@ def fwd_helper_for_analyse_tss_file(in_tss_start_pos, in_pssm_s1, in_pssm_s2, in
     for i in range(in_tss_start_pos - in_pssm_s2,  in_tss_start_pos - in_pssm_s1 + 1):
         tmp_start_pos = i
         tmp_end_pos = i + pssm_len - 1
-
         if tmp_start_pos >= 1:
             temp_score = 0
             temp_pssm_pos = 0
+            temp_motif = ""
             for j in range(tmp_start_pos, tmp_end_pos + 1):
                 if in_genome[j] in in_pssm:
+                    temp_motif += str(in_genome[j])
                     temp_score += in_pssm[in_genome[j]][temp_pssm_pos]
                 temp_pssm_pos += 1
-            result.append([in_tss_start_pos, in_pssm_s1, in_pssm_s2, tmp_start_pos, tmp_end_pos, "+", temp_score])
+            result.append([in_tss_start_pos, in_pssm_s1, in_pssm_s2, temp_motif, tmp_start_pos, tmp_end_pos, "+", temp_score])
     return result
 
 
@@ -195,13 +196,20 @@ def rev_helper_for_analyse_tss_file(in_tss_start_pos, in_pssm_s1, in_pssm_s2, in
         if tmp_end_pos <= len(in_genome):
             temp_score = 0
             temp_pssm_pos = pssm_len - 1
+            temp_motif = ""
             for j in range(tmp_start_pos, tmp_end_pos + 1):
                 if lookup[in_genome[j]] in in_pssm:
                     compl_nucl = lookup[in_genome[j]]
+                    temp_motif += str(compl_nucl)
                     # Calculate PSSM score backwards!
                     temp_score += in_pssm[compl_nucl][temp_pssm_pos]
                 temp_pssm_pos -= 1
-            result.append([in_tss_start_pos, in_pssm_s1, in_pssm_s2, tmp_start_pos, tmp_end_pos, "-", temp_score])
+            temp_motif = temp_motif[::-1]
+            if in_pssm_s1 > 0:
+                in_pssm_s1 *= -1
+            if in_pssm_s2 > 0:
+                in_pssm_s2 *= -1
+            result.append([in_tss_start_pos, in_pssm_s1, in_pssm_s2, temp_motif, tmp_start_pos, tmp_end_pos, "-", temp_score])
     return result
 
 
@@ -235,7 +243,7 @@ def analyse_tss_file(in_tss_args, in_pssm_s1_args, in_pssm_s2_args, in_pssm, in_
 def calculate_adjusted_p_values_norm(in_master_table, in_mu, in_std, in_alpha):
     raw_p_values = list()
     for i in range(0, len(in_master_table)):
-        tmp_p_val = norm(in_mu, in_std).sf(in_master_table[i][6])
+        tmp_p_val = norm(in_mu, in_std).sf(in_master_table[i][7])
         raw_p_values.append(tmp_p_val)
         master_table[i].append(tmp_p_val)
     # adjust p-values
@@ -252,7 +260,7 @@ def calculate_adjusted_p_values_norm(in_master_table, in_mu, in_std, in_alpha):
 def calculate_adjusted_p_values_genextreme(in_master_table, c, loc, scale, in_alpha):
     raw_p_values = list()
     for i in range(0, len(in_master_table)):
-        tmp_p_val = genextreme.sf(in_master_table[i][6], c, loc, scale)
+        tmp_p_val = genextreme.sf(in_master_table[i][7], c, loc, scale)
         raw_p_values.append(tmp_p_val)
         master_table[i].append(tmp_p_val)
     # adjust p-values
@@ -281,7 +289,7 @@ def build_final_tables(in_out_folder, in_master_table, in_alpha, in_description,
 
     handle = open(path_csv, "w")
     # write header line
-    header = "#TSS-POS" + "\t" + "MOTIF-MIN-DIST" + "\t" + "MOTIF-MAX-DIST" + "\t" + "START-POS" + "\t" + "END-POS" + \
+    header = "#TSS-POS" + "\t" + "MOTIF-MIN-DIST" + "\t" + "MOTIF-MAX-DIST" + "\t" + "MOTIF" + "\t" + "START-POS" + "\t" + "END-POS" + \
              "\t" + "STRAND" + "\t" + "PSSM-SCORE" + "\t" + "RAW_P-VALUE" + "\t" + "ADJUSTED_P-VALUE" + "\n"
     handle.write(header)
     # write data
@@ -296,14 +304,14 @@ def build_final_tables(in_out_folder, in_master_table, in_alpha, in_description,
     for entry in in_master_table:
         if entry[8] < in_alpha:
             color = "255 10 225"
-            last_col = "colour=" + str(color) + ";" + "note=" + "PSSM-Score " + str(round(entry[6], 6)) + " raw_p-Value " \
-                       + str(round(entry[7], 6)) + " adjusted_p-Value " + str(round(entry[8], 6))
-            out_str = "PRIME" + "\t" + "PRIME" + "\t" + str(in_description) + "\t" + str(entry[3]) + "\t" + \
-                      str(entry[4]) + "\t" + "." + "\t" + str(entry[5]) + "\t" + "." + "\t" + str(last_col) + "\n"
+            last_col = "colour=" + str(color) + ";" + "note=" + "PSSM-Score " + str(round(entry[7], 6)) + " raw_p-Value " \
+                       + str(round(entry[8], 6)) + " adjusted_p-Value " + str(round(entry[9], 6))
+            out_str = "PRIME" + "\t" + "PRIME" + "\t" + str(in_description) + "\t" + str(entry[4]) + "\t" + \
+                      str(entry[5]) + "\t" + "." + "\t" + str(entry[6]) + "\t" + "." + "\t" + str(last_col) + "\n"
             handle.write(out_str)
     handle.close()
 
-    #write PSSM model to file
+    # write PSSM model to file
     handle = open(path_pssm, "w")
     # header line
     header = "# GC-Content: " + str(round(in_gc * 100, 2)) + "%  Used Pseudocount Value: " + str(in_ps_counts) + "\n"
@@ -314,7 +322,7 @@ def build_final_tables(in_out_folder, in_master_table, in_alpha, in_description,
         handle.write(entry)
     handle.close()
 
-    #write TSS-File in GFF-Format
+    # write TSS-File in GFF-Format
     # todo use the internal build up master table instead of reading the input file again
     handle_out = open(path_tss, "w")
     handle_in = open(in_tss_list, "r")
