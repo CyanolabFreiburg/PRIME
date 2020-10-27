@@ -269,11 +269,17 @@ def analyse_tss_file(in_tss_args, in_pssm_s1_args, in_pssm_s2_args, in_pssm, in_
         line = line.rstrip()
         if count > 0:
             line_arr = line.split()
-            tss_start_pos = int(line_arr[0])
-            orientation = line_arr[3].upper()
+            # Auto detect input format => customized table
+            if len(line_arr) <= 10:
+                tss_start_pos = int(line_arr[0])
+                orientation = line_arr[1].upper()
+            # Auto detect input format => ReadXplorer format
+            if len(line_arr) > 10:
+                tss_start_pos = int(line_arr[0])
+                orientation = line_arr[3].upper()
             if not tss_start_pos in ensure_unique_tss:
                 ensure_unique_tss[tss_start_pos] = 0
-                if orientation == "FWD":
+                if orientation == "FWD" or orientation == "+":
                     master_table.append(fwd_helper_for_analyse_tss_file(tss_start_pos, in_pssm_s1_args, in_pssm_s2_args, in_pssm, in_genome))
                 else:
                     master_table.append(rev_helper_for_analyse_tss_file(tss_start_pos, in_pssm_s1_args, in_pssm_s2_args, in_pssm, in_genome))
@@ -399,7 +405,9 @@ if __name__ == "__main__":
     parser.add_argument("-f", "--fasta", help="GENOME file in FASTA format <FILE>", type=str, default="")
     parser.add_argument("-p", "--pssm", help="PSSM file, otherwise it will be computed <FILE> [optional]", type=str, default="")
     parser.add_argument("-m", "--motif", help="Hand selected motif patterns <FILE> [optional if --pssm is used, otherwise it is mandatory!", type=str, default="")
-    parser.add_argument("-s", "--tss", help="Transcriptional Start Sites <FILE>", type=str, default="")
+    parser.add_argument("-s", "--tss", help="ReadXplorer Transcriptional Start Sites <FILE> or customized input table, "
+                                            "first col. TSS-Start position, second col. Orientation and col. "
+                                            "three to ten are optional for any typ of information", type=str, default="")
     parser.add_argument("-x", "--pssm_s1", help="PSSM: Distance 1 to related TSS", type=int, default=-15)
     parser.add_argument("-y", "--pssm_s2", help="PSSM: Distance 2 to detected TSS", type=int, default=-5)
     parser.add_argument("-c", "--pseudo_count", help="Value for pseudocounts. Value is added to zero as well as non-zero values", type=float, default=0.7)
