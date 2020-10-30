@@ -194,10 +194,15 @@ def fwd_helper_for_analyse_tss_file(in_tss_start_pos, in_pssm_s1, in_pssm_s2, in
                     temp_score += in_pssm[in_genome[j]][temp_pssm_pos]
                 temp_pssm_pos += 1
 
-            if in_pssm_s1 > 0:
+            if tmp_end_pos < in_tss_start_pos:
+                # Upstream Region -x pos
+                motif_dist = "-" + str(in_tss_start_pos - tmp_end_pos)
+            elif tmp_start_pos > in_tss_start_pos:
+                # Downstream Region +x pos
                 motif_dist = "+" + str(tmp_start_pos - in_tss_start_pos)
             else:
-                motif_dist = "-" + str(in_tss_start_pos - tmp_end_pos)
+                # Overlapping TSS region
+                motif_dist = "Overlapping_TSS"
 
             result.append([in_tss_start_pos, motif_range, motif_dist, temp_motif, tmp_start_pos, tmp_end_pos, "+", temp_score])
     return result
@@ -244,10 +249,15 @@ def rev_helper_for_analyse_tss_file(in_tss_start_pos, in_pssm_s1, in_pssm_s2, in
                 temp_pssm_pos -= 1
             temp_motif = temp_motif[::-1]
 
-            if in_pssm_s1 > 0:
-                motif_dist = "+" + str(in_tss_start_pos - tmp_start_pos)
+            if tmp_end_pos < in_tss_start_pos:
+                # Downstream Region +x pos
+                motif_dist = "+" + str(in_tss_start_pos - tmp_end_pos)
+            elif tmp_start_pos > in_tss_start_pos:
+                # Upstream Region -x pos
+                motif_dist = "-" + str(tmp_start_pos - in_tss_start_pos)
             else:
-                motif_dist = "-" + str(tmp_end_pos - in_tss_start_pos)
+                # Overlapping TSS region
+                motif_dist = "Overlapping_TSS"
 
             result.append([in_tss_start_pos, motif_range, motif_dist, temp_motif, tmp_start_pos, tmp_end_pos, "-", temp_score])
     return result
